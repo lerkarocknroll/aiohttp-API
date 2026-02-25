@@ -3,46 +3,74 @@ import requests
 HOST = 'http://127.0.0.1:8000'
 
 
-def post():
-    post_data = {
-        'title': 'Selling an aquarium fish',
-        'description': 'Neon fish, really cool',
-        'owner': 'Valerchik'
-    }
-    response = requests.post(f'{HOST}/advertisements', json=post_data)
-    print(f'POST {response.status_code}')
-    print(response.json())
-    return response.json().get('id')
+def register(username, password):
+    resp = requests.post(f'{HOST}/register', json={'username': username, 'password': password})
+    print(f'Register: {resp.status_code}')
+    if resp.status_code == 201:
+        print('User created')
+    else:
+        print(resp.json())
 
 
-def get(ad_id: int):
-    response = requests.get(f'{HOST}/advertisements/{ad_id}/')
-    print(f'GET {response.status_code}')
-    print(response.json())
+def login(username, password):
+    resp = requests.post(f'{HOST}/login', json={'username': username, 'password': password})
+    print(f'Login: {resp.status_code}')
+    if resp.status_code == 200:
+        token = resp.json()['access_token']
+        print('Token:', token)
+        return token
+    else:
+        print(resp.json())
+        return None
 
 
-def patch(ad_id: int):
-    update_data = {
-        'title': 'Selling a rare neon fish',
-        'description': 'Very cool, price down'
-    }
-    response = requests.patch(f'{HOST}/advertisements/{ad_id}/', json=update_data)
-    print(f'PATCH {response.status_code}')
-    print(response.json())
+def create_ad(token, title, description):
+    headers = {'Authorization': f'Bearer {token}'}
+    resp = requests.post(f'{HOST}/advertisements', json={'title': title, 'description': description}, headers=headers)
+    print(f'Create ad: {resp.status_code}')
+    print(resp.json())
+    return resp.json().get('id')
 
 
-def delete(ad_id: int):
-    response = requests.delete(f'{HOST}/advertisements/{ad_id}/')
-    print(f'DELETE {response.status_code}')
-    print(response.json())
+def get_ad(ad_id):
+    resp = requests.get(f'{HOST}/advertisements/{ad_id}/')
+    print(f'Get ad {ad_id}: {resp.status_code}')
+    print(resp.json())
+
+
+def patch_ad(token, ad_id, updates):
+    headers = {'Authorization': f'Bearer {token}'}
+    resp = requests.patch(f'{HOST}/advertisements/{ad_id}/', json=updates, headers=headers)
+    print(f'Patch ad {ad_id}: {resp.status_code}')
+    print(resp.json())
+
+
+def delete_ad(token, ad_id):
+    headers = {'Authorization': f'Bearer {token}'}
+    resp = requests.delete(f'{HOST}/advertisements/{ad_id}/', headers=headers)
+    print(f'Delete ad {ad_id}: {resp.status_code}')
+    print(resp.json())
 
 
 if __name__ == '__main__':
-    print("=== TESTING API ===")
-    ad_id = post()
+    print('=== Регистрация и логин ===')
+    register('testuser', 'secret123')
+    token = login('testuser', 'secret123')
+    if not token:
+        exit(1)
+
+    print('\n=== Создание объявления ===')
+    ad_id = create_ad(token, 'Велосипед', 'Горный, 26 дюймов')
+
     if ad_id:
-        get(ad_id)
-        patch(ad_id)
-        get(ad_id)
-        delete(ad_id)
-        get(ad_id)
+        print('\n=== Получение объявления ===')
+        get_ad(ad_id)
+
+        print('\n=== Обновление объявления ===')
+        patch_ad(token, ad_id, {'title': 'Супер горный велосипед'})
+
+        print('\n=== Удаление объявления ===')
+        delete_ad(token, ad_id)
+
+        print('\n=== Проверка удаления ===')
+        get_ad(ad_id)
