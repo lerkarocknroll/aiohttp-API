@@ -38,6 +38,15 @@ def get_ad(ad_id):
     print(resp.json())
 
 
+def get_ads_list():
+    resp = requests.get(f'{HOST}/advertisements')
+    print(f'Get ads list: {resp.status_code}')
+    if resp.status_code == 204:
+        print('No ads')
+    else:
+        print(resp.json())
+
+
 def patch_ad(token, ad_id, updates):
     headers = {'Authorization': f'Bearer {token}'}
     resp = requests.patch(f'{HOST}/advertisements/{ad_id}/', json=updates, headers=headers)
@@ -49,7 +58,10 @@ def delete_ad(token, ad_id):
     headers = {'Authorization': f'Bearer {token}'}
     resp = requests.delete(f'{HOST}/advertisements/{ad_id}/', headers=headers)
     print(f'Delete ad {ad_id}: {resp.status_code}')
-    print(resp.json())
+    if resp.status_code == 204:
+        print('Deleted (no content)')
+    else:
+        print(resp.json())
 
 
 if __name__ == '__main__':
@@ -59,10 +71,16 @@ if __name__ == '__main__':
     if not token:
         exit(1)
 
+    print('\n=== Список объявлений (пуст) ===')
+    get_ads_list()
+
     print('\n=== Создание объявления ===')
     ad_id = create_ad(token, 'Велосипед', 'Горный, 26 дюймов')
 
     if ad_id:
+        print('\n=== Список объявлений (одно) ===')
+        get_ads_list()
+
         print('\n=== Получение объявления ===')
         get_ad(ad_id)
 
@@ -71,6 +89,9 @@ if __name__ == '__main__':
 
         print('\n=== Удаление объявления ===')
         delete_ad(token, ad_id)
+
+        print('\n=== Список объявлений (снова пуст) ===')
+        get_ads_list()
 
         print('\n=== Проверка удаления ===')
         get_ad(ad_id)
