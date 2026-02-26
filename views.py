@@ -3,6 +3,7 @@ import pydantic
 from models import Session, UserModel, AdModel, CreateUserModel, LoginUserModel, CreateAdModel, UpdateAdModel, HTTPError
 from auth import hash_password, check_password, create_access_token, decode_token
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload  # ИЗМЕНЕНО: добавлен импорт для загрузки
 
 async def register(request: web.Request) -> web.Response:
     try:
@@ -64,10 +65,36 @@ async def get_current_user(request: web.Request) -> int:
     except Exception:
         raise HTTPError(401, 'Invalid token')
 
+
+# ИЗМЕНЕНО: функция для получения списка объявлений (новый эндпоинт)
+async def get_ads_list(request: web.Request) -> web.Response:
+    async with Session() as session:
+        # Загружаем объявления вместе с пользователем (для owner)
+        query = select(AdModel).options(selectinload(AdModel.user))
+        result = await session.execute(query)
+        ads = result.scalars().all()
+        if not ads:
+            return web.json_response(status=204)  # пустой список → 204 No Content
+        ads_data = [
+            {
+                'id': ad.id,
+                'title': ad.title,
+                'description': ad.description,
+                'created_at': ad.created_at.isoformat(),
+                'owner': ad.user.username
+            }
+            for ad in ads
+        ]
+        return web.json_response(ads_data, status=200)
+
+
 async def get_ad(request: web.Request) -> web.Response:
     ad_id = int(request.match_info['id'])
     async with Session() as session:
-        ad = await session.get(AdModel, ad_id)
+        # ИЗМЕНЕНО: теперь используем select с selectinload, чтобы загрузить user
+        query = select(AdModel).where(AdModel.id == ad_id).options(selectinload(AdModel.user))
+        result = await session.execute(query)
+        ad = result.scalar_one_or_none()
         if ad is None:
             raise HTTPError(404, 'Ad not found')
         return web.json_response({
@@ -96,7 +123,7 @@ async def create_ad(request: web.Request) -> web.Response:
         ad = AdModel(user_id=user_id, **validated)
         session.add(ad)
         await session.commit()
-        await session.refresh(ad, ['user'])
+        await session.refresh(ad, ['user'])  # загружаем связанного пользователя
         return web.json_response({
             'id': ad.id,
             'title': ad.title,
@@ -138,6 +165,7 @@ async def patch_ad(request: web.Request) -> web.Response:
         })
 
 
+# ИЗМЕНЕНО: теперь возвращает 204 No Content без тела
 async def delete_ad(request: web.Request) -> web.Response:
     user_id = await get_current_user(request)
     ad_id = int(request.match_info['id'])
@@ -151,4 +179,4 @@ async def delete_ad(request: web.Request) -> web.Response:
 
         await session.delete(ad)
         await session.commit()
-        return web.json_response({'status': 'success'})
+        return web.Response(status=204)  # <-- изменено
